@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+
 from routes.auth import auth
 from routes.cfg import cfg
 from routes.student import student
@@ -14,16 +15,32 @@ from routes.progress import progress
 
 from jobs.schedule import schedule_init, schedule_run_uncomplete, schedule_run_alpha
 from jobs.train_model import run_train_model
+
 from decouple import config
 from apscheduler.schedulers.background import BackgroundScheduler
 import uvicorn
 import locale
 import os
-locale.setlocale(locale.LC_ALL, 'id_ID.utf8')
 
+# --- Locale: aman untuk Windows & Linux ---
+try:
+    # Linux/macOS
+    locale.setlocale(locale.LC_ALL, 'id_ID.utf8')
+except Exception:
+    try:
+        # Windows
+        locale.setlocale(locale.LC_ALL, 'Indonesian_Indonesia.1252')
+    except Exception:
+        # Jika tetap gagal, biarkan default locale
+        pass
+
+# Ubah ke /docs kalau mau default Swagger URL
 app = FastAPI(docs_url="/doc")
 
-def cors_headers(app):
+
+def cors_headers(app: FastAPI) -> FastAPI:
+    # Jika ingin lebih ketat, ganti allow_origins ke list tertentu:
+    # contoh: ["http://localhost:5173", "http://127.0.0.1:5173"]
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["*"],
@@ -35,10 +52,10 @@ def cors_headers(app):
     return app
 
 
+# --- Router ---
 app.include_router(auth)
 app.include_router(student)
 # app.include_router(teacher)
-
 # app.include_router(batch)
 app.include_router(modul)
 app.include_router(topik)
@@ -49,27 +66,66 @@ app.include_router(progress)
 
 app = cors_headers(app)
 
+# --- Static dir ---
 if not os.path.exists("static"):
-        os.makedirs("static")
+    os.makedirs("static")
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
+
+
 @app.get("/")
 async def root():
     return {"message": "SAS API version 1.1"}
 
-# Batch Proses run example
+@app.get("/api/materi-pembelajaran")
+def get_materi_pembelajaran():
+    # This is dummy data. Later, you will get this from your database.
+    dummy_data = [
+        {
+            "id": "1",
+            "nama": "Name of Topic",
+            "deskripsi": "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua",
+            "type": "topic"
+        },
+        {
+            "id": "2",
+            "nama": "Nmae of Topic",
+            "deskripsi": "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua",
+            "type": "topic"
+        },
+        {
+            "id": "3",
+            "nama": "Text File",
+            "deskripsi": "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua",
+            "type": "text"
+        },
+        {
+            "id": "4V",
+            "nama": "PDF File",
+            "deskripsi": "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua",
+            "type": "pdf"
+        },
+        {
+            "id": "5",
+            "nama": "Video File",
+            "deskripsi": "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua",
+            "type": "video"
+        }
+    ]
+    return {"materi": dummy_data}
+# --- Jadwal (nonaktif, aktifkan kalau diperlukan) ---
 # @app.on_event('startup')
 # def init_data():
 #     schedule_init()
-
 #     scheduler = BackgroundScheduler()
-#     # scheduler.add_job(schedule_run, 'cron', hour='*') # every hour
-#     # run schedule every 1 night a clock
 #     scheduler.add_job(run_train_model, 'cron', hour='01', minute='00')
 #     scheduler.add_job(schedule_run_uncomplete, 'cron', hour='01', minute='00')
 #     scheduler.add_job(schedule_run_alpha, 'cron', hour='21', minute='00')
-#     # scheduler.add_job(schedule_run_alpha, 'cron', hour='14', minute='28')
 #     scheduler.start()
 
+
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=config('PORT_APP'))
+    # BACA HOST & PORT dari .env dengan CAST yang benar
+    HOST = config("HOST", default="0.0.0.0")
+    PORT = config("PORT_APP", cast=int, default=3000)  # <= penting: cast=int
+    uvicorn.run(app, host=HOST, port=PORT)
